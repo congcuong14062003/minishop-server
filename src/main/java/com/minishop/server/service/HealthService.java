@@ -1,4 +1,4 @@
-package com.minishop.server.health;
+package com.minishop.server.service;
 
 import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;

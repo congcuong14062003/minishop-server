@@ -1,10 +1,12 @@
 spring:
   application:
     name: minishop-server
+  config:
+    import: optional:file:./config/database.properties,optional:file:./config/auth.properties,optional:file:./config/mail.properties
   datasource:
-    url: ${DB_URL:jdbc:postgresql://localhost:5432/minishop?currentSchema=minishop}
-    username: ${DB_USER:postgres}
-    password: ${DB_PASSWORD:}
+    url: jdbc:postgresql://localhost:5432/minishop?currentSchema=minishop
+    username: postgres
+    password: ""
     hikari:
       maximum-pool-size: 10
       minimum-idle: 2
@@ -37,3 +39,16 @@ management:
   endpoint:
     health:
       show-details: never
+
+logging:
+  pattern:
+    level: "%5p [requestId:%X{requestId:-}]"
+
+app:
+  auth:
+    issuer: minishop-server
+    access-token-minutes: 15
+    refresh-token-days: 30
+    verification-code-minutes: 10
+    resend-cooldown-seconds: 60
+    max-verification-attempts: 5

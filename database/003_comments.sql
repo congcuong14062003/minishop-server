@@ -4,11 +4,11 @@ BEGIN;
 
 COMMENT ON SCHEMA minishop IS 'Dữ liệu nghiệp vụ của ứng dụng MiniShop.';
 
-COMMENT ON TABLE minishop.users IS 'Tài khoản khách hàng dùng để đăng nhập, mua hàng và nhận thông báo.';
-COMMENT ON COLUMN minishop.users.id IS 'Mã định danh duy nhất của khách hàng.';
+COMMENT ON TABLE minishop.users IS 'Tài khoản dùng chung để đăng nhập MiniShop và CMS; quyền được lưu trong user_roles.';
+COMMENT ON COLUMN minishop.users.id IS 'Mã định danh duy nhất của tài khoản.';
 COMMENT ON COLUMN minishop.users.email IS 'Email đăng nhập, có thể để trống nếu dùng số điện thoại; không phân biệt chữ hoa và chữ thường khi kiểm tra trùng.';
 COMMENT ON COLUMN minishop.users.phone IS 'Số điện thoại đăng nhập, có thể để trống nếu có email.';
-COMMENT ON COLUMN minishop.users.full_name IS 'Họ tên hiển thị của khách hàng.';
+COMMENT ON COLUMN minishop.users.full_name IS 'Họ tên hiển thị của người dùng.';
 COMMENT ON COLUMN minishop.users.password_hash IS 'Mật khẩu đã băm; có thể để trống với tài khoản chỉ đăng nhập qua nhà cung cấp ngoài.';
 COMMENT ON COLUMN minishop.users.status IS 'Trạng thái tài khoản: active đang dùng, blocked bị khóa.';
 COMMENT ON COLUMN minishop.users.created_at IS 'Thời điểm tạo tài khoản.';

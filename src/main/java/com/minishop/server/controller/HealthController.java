@@ -1,6 +1,7 @@
-package com.minishop.server.health;
+package com.minishop.server.controller;
 
 import com.minishop.server.common.api.ApiResponse;
+import com.minishop.server.service.HealthService;
 import java.util.Map;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;

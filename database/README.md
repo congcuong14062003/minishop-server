@@ -11,16 +11,27 @@ createdb -U postgres minishop
 psql -U postgres -d minishop -v ON_ERROR_STOP=1 -f database/001_init.sql
 psql -U postgres -d minishop -v ON_ERROR_STOP=1 -f database/002_seed_reference.sql
 psql -U postgres -d minishop -v ON_ERROR_STOP=1 -f database/003_comments.sql
+psql -U postgres -d minishop -v ON_ERROR_STOP=1 -f database/004_auth.sql
+psql -U postgres -d minishop -v ON_ERROR_STOP=1 -f database/005_password_reset.sql
+psql -U postgres -d minishop -v ON_ERROR_STOP=1 -f database/006_user_roles.sql
 ```
 
 `001_init.sql` là migration chạy **một lần**; nó tạo schema `minishop` và toàn bộ bảng trong một transaction. `002_seed_reference.sql` là dữ liệu tham chiếu mẫu, có thể chạy lại. Nếu `psql` chưa có trong PATH trên Windows, dùng đường dẫn `C:\Program Files\PostgreSQL\18\bin\psql.exe` tương ứng với bản PostgreSQL đã cài.
 
 `003_comments.sql` mô tả bằng tiếng Việt từng bảng, từng cột và view. Chạy file này sau `001_init.sql`; với database đã có schema, chỉ cần chạy riêng file chú thích. Có thể chạy lại để cập nhật mô tả. Xem chú thích trong `psql` bằng `\d+ minishop.users` (thay `users` bằng tên bảng khác), hoặc xem trường **Comment** trong pgAdmin.
 
+`004_auth.sql` bổ sung bảng mã xác minh email và refresh token; chỉ chạy **một lần** trên database đã có `001_init.sql`. Script này đã được áp dụng cho database local `minishop` trong phiên phát triển auth. Với database khác, chạy sau các file trên; xem [hướng dẫn auth](../docs/AUTH_GUIDE.md).
+
+`005_password_reset.sql` bổ sung bảng mã khôi phục mật khẩu. Database local đã chạy file này; môi trường khác chạy **một lần** sau `004_auth.sql`.
+
+`006_user_roles.sql` bổ sung bảng phân quyền `roles` và `user_roles`. File này gán `CUSTOMER` cho tài khoản có sẵn và tạo trigger để tài khoản mới cũng nhận `CUSTOMER`; **không tự cấp `ADMIN`**. Chạy **một lần** sau `005_password_reset.sql`. Với database đã có các file trước, chỉ cần chạy file 006, không chạy lại `001_init.sql`.
+
 ## Quan hệ chính
 
 ```mermaid
 erDiagram
+    users ||--o{ user_roles : has
+    roles ||--o{ user_roles : grants
     users ||--o{ addresses : owns
     users ||--o{ cart_items : owns
     users ||--o{ wishlist_items : owns
@@ -44,7 +55,7 @@ erDiagram
 
 | Nhóm      | Bảng                                                                                           | Vai trò                                                                     |
 | --------- | ---------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
-| Tài khoản | `users`, `oauth_accounts`, `user_preferences`, `addresses`                                     | Email/điện thoại, đăng nhập Google sau này, theme và sổ địa chỉ             |
+| Tài khoản | `users`, `roles`, `user_roles`, `oauth_accounts`, `user_preferences`, `addresses`              | Danh tính dùng chung, phân quyền, đăng nhập Google sau này, theme và sổ địa chỉ |
 | Catalog   | `categories`, `brands`, `products`, `product_variants`, `product_images`                       | Thông tin sản phẩm, SKU, lựa chọn màu/dung lượng, giá và tồn kho            |
 | Trang chủ | `banners`, `collections`, `collection_products`, `flash_sale_campaigns`, `flash_sale_variants` | Banner, danh sách gợi ý/được yêu thích và Flash Sale có thời gian/giới hạn  |
 | Mua sắm   | `cart_items`, `wishlist_items`, `vouchers`                                                     | Giỏ hàng theo biến thể, yêu thích theo sản phẩm và mã giảm giá              |
@@ -63,7 +74,23 @@ Tên bảng đều nằm trong schema `minishop`. `catalog_listing` là view l�
 - Đơn hàng lưu **bản chụp** tên/giá/SKU/thuộc tính trong `order_items` và thông tin giao hàng trong `orders`. Sửa sản phẩm hoặc địa chỉ sau khi mua không làm thay đổi đơn cũ.
 - `addresses_one_default_per_user` bảo đảm tối đa một địa chỉ mặc định mỗi người. Backend đặt địa chỉ đầu tiên làm mặc định và chọn địa chỉ khác khi xóa địa chỉ mặc định.
 - `users.password_hash` chỉ chứa hash mật khẩu; không lưu mật khẩu thô. `oauth_accounts` lưu mã định danh từ nhà cung cấp, không lưu mật khẩu Google.
+- Mỗi tài khoản luôn có `CUSTOMER`. `STAFF` và `ADMIN` chỉ được cấp qua quy trình nội bộ sau khi xác minh đúng người dùng. Backend phải kiểm tra vai trò ở API quản trị; ẩn menu trên CMS không phải là phân quyền.
 - `created_at` và `updated_at` dùng `TIMESTAMPTZ`; API chuyển sang múi giờ Việt Nam khi hiển thị.
+
+## Cấp quyền admin đầu tiên
+
+Không gán admin theo email cố định trong migration. Sau khi xác minh tài khoản cần cấp quyền, thay email ví dụ bằng email tài khoản đã đăng ký và chạy:
+
+```sql
+INSERT INTO minishop.user_roles (user_id, role_code)
+SELECT id, 'ADMIN'
+FROM minishop.users
+WHERE lower(email) = lower('admin@example.com') AND status = 'active'
+ON CONFLICT (user_id, role_code) DO NOTHING
+RETURNING user_id;
+```
+
+Lệnh `RETURNING` phải trả về một user ID; nếu không có kết quả, kiểm tra lại email và trạng thái tài khoản. Backend kiểm tra vai trò `ADMIN` trực tiếp từ database cho mỗi request `/api/v1/admin/**`, nên việc thu hồi quyền có hiệu lực mà không cần đợi access token hết hạn.
 
 ## Giao dịch checkout cần có ở backend
 
